@@ -344,3 +344,8 @@ output "azs" {
   description = "A list of availability zones specified as argument to this module"
   value       = "${var.azs}"
 }
+
+output "az_ids" {
+  description = "A list of availability zone IDs specified as argument to this module"
+  value       = "${var.az_ids}"
+}
