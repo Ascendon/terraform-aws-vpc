@@ -142,6 +142,11 @@ variable "azs" {
   default     = []
 }
 
+variable"az_ids" {
+  description = "A list of availability zone IDs in the region"
+  default     = []
+}
+
 variable "enable_dns_hostnames" {
   description = "Should be true to enable DNS hostnames in the VPC"
   default     = false

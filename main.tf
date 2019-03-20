@@ -191,11 +191,22 @@ resource "aws_subnet" "public" {
   tags = "${merge(map("Name", format("%s-${var.public_subnet_suffix}-%s", var.name, element(var.azs, count.index))), var.tags, var.public_subnet_tags)}"
 }
 
+resource "aws_subnet" "public_by_id" {
+  count = "${var.create_vpc && length(var.public_subnets) > 0 && (!var.one_nat_gateway_per_az || length(var.public_subnets) >= length(var.az_ids)) ? length(var.public_subnets) : 0}"
+
+  vpc_id                  = "${local.vpc_id}"
+  cidr_block              = "${element(concat(var.public_subnets, list("")), count.index)}"
+  availability_zone_id    = "${element(var.az_ids, count.index)}"
+  map_public_ip_on_launch = "${var.map_public_ip_on_launch}"
+
+  tags = "${merge(map("Name", format("%s-${var.public_subnet_suffix}-%s", var.name, element(var.az_ids, count.index))), var.tags, var.public_subnet_tags)}"
+}
+
 #################
 # Private subnet
 #################
 resource "aws_subnet" "private" {
-  count = "${var.create_vpc && length(var.private_subnets) > 0 ? length(var.private_subnets) : 0}"
+  count = "${var.create_vpc && length(var.private_subnets) > 0 && length(var.private_subnets) >= length(var.azs) ? length(var.private_subnets) : 0}"
 
   vpc_id            = "${local.vpc_id}"
   cidr_block        = "${var.private_subnets[count.index]}"
@@ -204,11 +215,21 @@ resource "aws_subnet" "private" {
   tags = "${merge(map("Name", format("%s-${var.private_subnet_suffix}-%s", var.name, element(var.azs, count.index))), var.tags, var.private_subnet_tags)}"
 }
 
+resource "aws_subnet" "private_by_id" {
+  count = "${var.create_vpc && length(var.private_subnets) > 0 && length(var.private_subnets) >= length(var.az_ids) ? length(var.private_subnets) : 0}"
+
+  vpc_id                = "${local.vpc_id}"
+  cidr_block            = "${var.private_subnets[count.index]}"
+  availability_zone_id  = "${element(var.az_ids, count.index)}"
+
+  tags = "${merge(map("Name", format("%s-${var.private_subnet_suffix}-%s", var.name, element(var.az_ids, count.index))), var.tags, var.private_subnet_tags)}"
+}
+
 ##################
 # Database subnet
 ##################
 resource "aws_subnet" "database" {
-  count = "${var.create_vpc && length(var.database_subnets) > 0 ? length(var.database_subnets) : 0}"
+  count = "${var.create_vpc && length(var.database_subnets) > 0 && length(var.database_subnets) >= length(var.azs) ? length(var.database_subnets) : 0}"
 
   vpc_id            = "${local.vpc_id}"
   cidr_block        = "${var.database_subnets[count.index]}"
@@ -218,7 +239,7 @@ resource "aws_subnet" "database" {
 }
 
 resource "aws_db_subnet_group" "database" {
-  count = "${var.create_vpc && length(var.database_subnets) > 0 && var.create_database_subnet_group ? 1 : 0}"
+  count = "${var.create_vpc && length(var.database_subnets) > 0 && var.create_database_subnet_group && length(var.database_subnets) >= length(var.azs) ? 1 : 0}"
 
   name        = "${lower(var.name)}"
   description = "Database subnet group for ${var.name}"
@@ -227,11 +248,31 @@ resource "aws_db_subnet_group" "database" {
   tags = "${merge(map("Name", format("%s", var.name)), var.tags, var.database_subnet_group_tags)}"
 }
 
+resource "aws_subnet" "database_by_id" {
+  count = "${var.create_vpc && length(var.database_subnets) > 0 && length(var.database_subnets) >= length(var.az_ids) ? length(var.database_subnets) : 0}"
+
+  vpc_id                = "${local.vpc_id}"
+  cidr_block            = "${var.database_subnets[count.index]}"
+  availability_zone_id  = "${element(var.az_ids, count.index)}"
+
+  tags = "${merge(map("Name", format("%s-${var.database_subnet_suffix}-%s", var.name, element(var.az_ids, count.index))), var.tags, var.database_subnet_tags)}"
+}
+
+resource "aws_db_subnet_group" "database_by_id" {
+  count = "${var.create_vpc && length(var.database_subnets) > 0 && var.create_database_subnet_group && length(var.database_subnets) >= length(var.az_ids) ? 1 : 0}"
+
+  name        = "${lower(var.name)}"
+  description = "Database subnet group for ${var.name}"
+  subnet_ids  = ["${aws_subnet.database_by_id.*.id}"]
+
+  tags = "${merge(map("Name", format("%s", var.name)), var.tags, var.database_subnet_group_tags)}"
+}
+
 ##################
 # Redshift subnet
 ##################
 resource "aws_subnet" "redshift" {
-  count = "${var.create_vpc && length(var.redshift_subnets) > 0 ? length(var.redshift_subnets) : 0}"
+  count = "${var.create_vpc && length(var.redshift_subnets) > 0 && length(var.redshift_subnets) >= length(var.azs) ? length(var.redshift_subnets) : 0}"
 
   vpc_id            = "${local.vpc_id}"
   cidr_block        = "${var.redshift_subnets[count.index]}"
@@ -241,7 +282,7 @@ resource "aws_subnet" "redshift" {
 }
 
 resource "aws_redshift_subnet_group" "redshift" {
-  count = "${var.create_vpc && length(var.redshift_subnets) > 0 && var.create_redshift_subnet_group ? 1 : 0}"
+  count = "${var.create_vpc && length(var.redshift_subnets) > 0 && var.create_redshift_subnet_group && length(var.redshift_subnets) >= length(var.azs) ? 1 : 0}"
 
   name        = "${lower(var.name)}"
   description = "Redshift subnet group for ${var.name}"
@@ -250,11 +291,31 @@ resource "aws_redshift_subnet_group" "redshift" {
   tags = "${merge(map("Name", format("%s", var.name)), var.tags, var.redshift_subnet_group_tags)}"
 }
 
+resource "aws_subnet" "redshift_by_id" {
+  count = "${var.create_vpc && length(var.redshift_subnets) > 0 && length(var.redshift_subnets) >= length(var.az_ids) ? length(var.redshift_subnets) : 0}"
+
+  vpc_id                = "${local.vpc_id}"
+  cidr_block            = "${var.redshift_subnets[count.index]}"
+  availability_zone_id  = "${element(var.az_ids, count.index)}"
+
+  tags = "${merge(map("Name", format("%s-${var.redshift_subnet_suffix}-%s", var.name, element(var.az_ids, count.index))), var.tags, var.redshift_subnet_tags)}"
+}
+
+resource "aws_redshift_subnet_group" "redshift_by_id" {
+  count = "${var.create_vpc && length(var.redshift_subnets) > 0 && var.create_redshift_subnet_group && length(var.redshift_subnets) >= length(var.az_ids) ? 1 : 0}"
+
+  name        = "${lower(var.name)}"
+  description = "Redshift subnet group for ${var.name}"
+  subnet_ids  = ["${aws_subnet.redshift_by_id.*.id}"]
+
+  tags = "${merge(map("Name", format("%s", var.name)), var.tags, var.redshift_subnet_group_tags)}"
+}
+
 #####################
 # ElastiCache subnet
 #####################
 resource "aws_subnet" "elasticache" {
-  count = "${var.create_vpc && length(var.elasticache_subnets) > 0 ? length(var.elasticache_subnets) : 0}"
+  count = "${var.create_vpc && length(var.elasticache_subnets) > 0 && length(var.elasticache_subnets) >= length(var.azs) ? length(var.elasticache_subnets) : 0}"
 
   vpc_id            = "${local.vpc_id}"
   cidr_block        = "${var.elasticache_subnets[count.index]}"
@@ -264,22 +325,50 @@ resource "aws_subnet" "elasticache" {
 }
 
 resource "aws_elasticache_subnet_group" "elasticache" {
-  count = "${var.create_vpc && length(var.elasticache_subnets) > 0 && var.create_elasticache_subnet_group ? 1 : 0}"
+  count = "${var.create_vpc && length(var.elasticache_subnets) > 0 && var.create_elasticache_subnet_group && length(var.elasticache_subnets) >= length(var.azs) ? 1 : 0}"
 
   name        = "${var.name}"
   description = "ElastiCache subnet group for ${var.name}"
   subnet_ids  = ["${aws_subnet.elasticache.*.id}"]
 }
 
+resource "aws_subnet" "elasticache_by_id" {
+  count = "${var.create_vpc && length(var.elasticache_subnets) > 0 && length(var.elasticache_subnets) >= length(var.az_ids) ? length(var.elasticache_subnets) : 0}"
+
+  vpc_id                = "${local.vpc_id}"
+  cidr_block            = "${var.elasticache_subnets[count.index]}"
+  availability_zone_id  = "${element(var.az_ids, count.index)}"
+
+  tags = "${merge(map("Name", format("%s-${var.elasticache_subnet_suffix}-%s", var.name, element(var.az_ids, count.index))), var.tags, var.elasticache_subnet_tags)}"
+}
+
+resource "aws_elasticache_subnet_group" "elasticache_by_id" {
+  count = "${var.create_vpc && length(var.elasticache_subnets) > 0 && var.create_elasticache_subnet_group && length(var.elasticache_subnets) >= length(var.az_ids) ? 1 : 0}"
+
+  name        = "${var.name}"
+  description = "ElastiCache subnet group for ${var.name}"
+  subnet_ids  = ["${aws_subnet.elasticache_by_id.*.id}"]
+}
+
 #####################################################
 # intra subnets - private subnet without NAT gateway
 #####################################################
 resource "aws_subnet" "intra" {
-  count = "${var.create_vpc && length(var.intra_subnets) > 0 ? length(var.intra_subnets) : 0}"
+  count = "${var.create_vpc && length(var.intra_subnets) > 0 && length(var.intra_subnets) >= length(var.azs) ? length(var.intra_subnets) : 0}"
 
   vpc_id            = "${local.vpc_id}"
   cidr_block        = "${var.intra_subnets[count.index]}"
   availability_zone = "${element(var.azs, count.index)}"
+
+  tags = "${merge(map("Name", format("%s-${var.intra_subnet_suffix}-%s", var.name, element(var.azs, count.index))), var.tags, var.intra_subnet_tags)}"
+}
+
+resource "aws_subnet" "intra_by_id" {
+  count = "${var.create_vpc && length(var.intra_subnets) > 0 && length(var.intra_subnets) >= length(var.az_ids) ? length(var.intra_subnets) : 0}"
+
+  vpc_id                = "${local.vpc_id}"
+  cidr_block            = "${var.intra_subnets[count.index]}"
+  availability_zone_id  = "${element(var.az_ids, count.index)}"
 
   tags = "${merge(map("Name", format("%s-${var.intra_subnet_suffix}-%s", var.name, element(var.azs, count.index))), var.tags, var.intra_subnet_tags)}"
 }
