@@ -142,7 +142,7 @@ variable "azs" {
   default     = []
 }
 
-variable"az_ids" {
+variable "az_ids" {
   description = "A list of availability zone IDs in the region"
   default     = []
 }
